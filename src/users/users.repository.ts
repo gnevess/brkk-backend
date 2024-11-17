@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from 'nestjs-prisma';
 import { EAuthenticationProviders } from 'src/common/enums/AuthenticationProviders';
 
@@ -61,7 +62,18 @@ export class UsersRepository {
     });
   }
 
-  public createUser(provider: EAuthenticationProviders, email: string) {
+  public updateUser(userId: string, { displayName, login, avatar }: { displayName: string, login: string, avatar: string }) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        UserProfile: {
+          update: { displayName, login, avatar },
+        },
+      },
+    });
+  }
+
+  public createUser(provider: EAuthenticationProviders, email: string, displayName: string, login: string, avatar: string) {
     return this.prisma.user.create({
       data: {
         UserAuthorizationProvider: {
@@ -74,32 +86,17 @@ export class UsersRepository {
             email,
           },
         },
+        UserProfile: {
+          create: {
+            displayName,
+            login,
+            avatar,
+          },
+        },
+        UserRole: [UserRole.USER],
       },
       include: {
         UserAuthorizationProvider: true,
-      },
-    });
-  }
-
-  public updateName(userId: string, firstName: string, lastName: string) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        UserProfile: {
-          upsert: {
-            where: {
-              userId,
-            },
-            update: {
-              firstName,
-              lastName,
-            },
-            create: {
-              firstName,
-              lastName,
-            },
-          },
-        },
       },
     });
   }

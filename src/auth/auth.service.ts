@@ -1,11 +1,11 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
-import { AuthLoginDTO } from './dto/auth-login.dto';
 import { UsersService } from 'src/users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './interface/jwt.payload.interface';
 import { ConfigType } from '@nestjs/config';
 import authConfig from 'src/common/config/auth.config';
 import { User } from '@prisma/client';
+import { TwitchAuthDTO } from './dto/twitch-auth.dto';
 @Injectable()
 export class AuthService {
   constructor(
@@ -16,7 +16,7 @@ export class AuthService {
     private readonly authConfiguration: ConfigType<typeof authConfig>,
   ) {}
 
-  public async login(data: AuthLoginDTO) {
+  public async validateOrCreateUser(data: TwitchAuthDTO) {
     const user = await this.userService.validateUser(data);
 
     return this.createToken(user.id);
