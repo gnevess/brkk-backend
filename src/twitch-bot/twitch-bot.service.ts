@@ -44,6 +44,57 @@ export class TwitchBotService implements OnModuleInit {
     }
   }
 
+  private async getTwitchOAuthToken(): Promise<string> {
+    try {
+      const response = await fetch('https://id.twitch.tv/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: process.env.TWITCH_CLIENT_ID ?? '',
+          client_secret: process.env.TWITCH_CLIENT_SECRET ?? '',
+          grant_type: 'client_credentials',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.access_token;
+    } catch (error) {
+      console.error('Failed to get Twitch OAuth token:', error);
+      throw error;
+    }
+  }
+
+  async getVods() {
+    try {
+      const accessToken = await this.getTwitchOAuthToken();
+      const response = await fetch(
+        'https://api.twitch.tv/helix/videos?user_id=' + (process.env.TWITCH_CHANNEL_ID ?? '') + '&first=30',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Client-Id': process.env.TWITCH_CLIENT_ID ?? '',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Failed to fetch VODs:', error);
+      return [];
+    }
+  }
+
   private registerEventHandlers() {
     this.client.on('chat', (channel, userstate, message, self) => {
       if (self) return;
