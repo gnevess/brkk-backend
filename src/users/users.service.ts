@@ -1,19 +1,22 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { NotFoundError } from '../common/exceptions';
 import { ErrorCodes } from '../common/enums/ErrorCodes';
-import { AuthProvider } from '../auth/auth.provider';
 import { UsersRepository } from './users.repository';
-import { User } from '@prisma/client';
+import { PointsHistoryStatus, User } from '@prisma/client';
 import { TwitchAuthDTO } from 'src/auth/dto/twitch-auth.dto';
 import { EAuthenticationProviders } from 'src/common/enums/AuthenticationProviders';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @Inject(forwardRef(() => AuthProvider))
-    private authProvider: AuthProvider,
-    private usersRepository: UsersRepository,
-  ) {}
+  constructor(private usersRepository: UsersRepository) {}
+
+  public async addPoints(userId: string, points: number) {
+    return await this.usersRepository.addPoints(userId, points);
+  }
+
+  public async findByLogin(login: string): Promise<User | null> {
+    return await this.usersRepository.findUserByLogin(login);
+  }
 
   public async findById(id: string): Promise<User | null> {
     return await this.usersRepository.findUserById(id);
@@ -44,7 +47,13 @@ export class UsersService {
     }
 
     // Create new user
-    const newUser = await this.usersRepository.createUser(EAuthenticationProviders.TWITCH, data.userData.email, data.userData.display_name, data.userData.login, data.userData.profile_image_url);
+    const newUser = await this.usersRepository.createUser(
+      EAuthenticationProviders.TWITCH,
+      data.userData.email,
+      data.userData.display_name,
+      data.userData.login,
+      data.userData.profile_image_url,
+    );
 
     return newUser;
   }
@@ -55,5 +64,15 @@ export class UsersService {
     if (!user) throw new NotFoundError('User not found', ErrorCodes.USER_NOT_FOUND);
 
     return user;
+  }
+
+  public createPointsHistory(
+    userId: string,
+    points: number,
+    status: PointsHistoryStatus,
+    title: string,
+    description: string,
+  ) {
+    return this.usersRepository.createPointsHistory(userId, points, status, title, description);
   }
 }

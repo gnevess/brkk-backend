@@ -3,11 +3,12 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-
+  app.useWebSocketAdapter(new IoAdapter(app));
   const config = new DocumentBuilder()
     .setTitle('Brkk backend')
     .setDescription('Brkk backend API description')

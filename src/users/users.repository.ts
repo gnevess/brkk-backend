@@ -1,11 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { PointsHistoryStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'nestjs-prisma';
 import { EAuthenticationProviders } from 'src/common/enums/AuthenticationProviders';
+import { ErrorCodes } from 'src/common/enums/ErrorCodes';
+import { NotFoundError } from 'src/common/exceptions';
 
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  public async addPoints(userId: string, points: number) {
+    const user = await this.findUserById(userId);
+    if (!user) {
+      throw new NotFoundError(ErrorCodes.USER_NOT_FOUND);
+    }
+
+    const updatedPoints = user.points + points;
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { points: updatedPoints },
+    });
+  }
 
   public findUserByEmail(email: string) {
     return this.prisma.user.findFirst({
@@ -43,12 +59,23 @@ export class UsersRepository {
     });
   }
 
+  public findUserByLogin(login: string) {
+    return this.prisma.user.findFirst({
+      where: { UserProfile: { login } },
+    });
+  }
+
   public findUserById(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
       include: {
         UserProfile: true,
         UserAuthorizationProvider: true,
+        PointsHistory: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
       },
     });
   }
@@ -62,7 +89,10 @@ export class UsersRepository {
     });
   }
 
-  public updateUser(userId: string, { displayName, login, avatar }: { displayName: string, login: string, avatar: string }) {
+  public updateUser(
+    userId: string,
+    { displayName, login, avatar }: { displayName: string; login: string; avatar: string },
+  ) {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -73,7 +103,13 @@ export class UsersRepository {
     });
   }
 
-  public createUser(provider: EAuthenticationProviders, email: string, displayName: string, login: string, avatar: string) {
+  public createUser(
+    provider: EAuthenticationProviders,
+    email: string,
+    displayName: string,
+    login: string,
+    avatar: string,
+  ) {
     return this.prisma.user.create({
       data: {
         UserAuthorizationProvider: {
@@ -97,6 +133,24 @@ export class UsersRepository {
       },
       include: {
         UserAuthorizationProvider: true,
+      },
+    });
+  }
+
+  public createPointsHistory(
+    userId: string,
+    points: number,
+    status: PointsHistoryStatus,
+    title: string,
+    description: string,
+  ) {
+    return this.prisma.pointsHistory.create({
+      data: {
+        userId,
+        points,
+        status,
+        title,
+        description,
       },
     });
   }
