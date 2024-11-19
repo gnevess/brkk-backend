@@ -27,7 +27,7 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   constructor(private readonly usersService: UsersService) {}
 
   handleConnection(client: Socket) {
-    if (client?.id) {
+    if (client.id) {
       console.log(`Client connected: ${client.id}`);
     }
   }
