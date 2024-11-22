@@ -76,6 +76,18 @@ export class UsersRepository {
             createdAt: 'desc',
           },
         },
+        Ticket: true,
+      },
+    });
+  }
+
+  public addAdmin(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        UserRole: {
+          set: [UserRole.USER, UserRole.ADMIN],
+        },
       },
     });
   }

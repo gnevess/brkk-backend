@@ -1,21 +1,21 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Client } from 'tmi.js';
-import { UsersService } from '../users/users.service';
-import { WebSocketGateway } from '../websocket/websocket.gateway';
-import { PointsHistoryStatus } from '@prisma/client';
-
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+import { StreamStatus } from './interfaces/user-points.interface';
 @Injectable()
 export class TwitchBotService implements OnModuleInit {
   private client: Client;
   private activeUsers: Set<string> = new Set<string>();
-  private readonly POINTS_INTERVAL = 5 * 60 * 1000;
+  private readonly POINTS_INTERVAL = 10 * 60 * 1000; // 10 minutes
+  private readonly STREAM_CHECK_INTERVAL = 2 * 60 * 1000; // 2 minutes
+  private streamStatus: StreamStatus = {
+    isOnline: false,
+    lastCheck: new Date(),
+  };
 
-  constructor(
-    private readonly usersService: UsersService,
-    private readonly wsGateway: WebSocketGateway,
-  ) {
+  constructor(private readonly amqpConnection: AmqpConnection) {
     this.client = new Client({
-      options: { debug: true },
+      options: { debug: false },
       connection: {
         secure: true,
         reconnect: true,
@@ -29,10 +29,65 @@ export class TwitchBotService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    console.log('Initializing Twitch bot');
     await this.connect();
     this.registerEventHandlers();
     this.startPointsTimer();
+    this.startStreamStatusChecker();
+  }
+
+  private registerEventHandlers() {
+    this.client.on('chat', (channel, userstate, message, self) => {
+      if (self) return;
+
+      const points = 0.1;
+      void this.amqpConnection.publish('points', 'award-points', {
+        username: userstate.username ?? '',
+        displayName: userstate['display-name'] ?? '',
+        points,
+        reason: 'chat',
+      });
+    });
+
+    this.client.on('join', (channel, username, self) => {
+      if (self) return;
+
+      const points = 5;
+      this.activeUsers.add(username);
+      void this.amqpConnection.publish('points', 'award-points', {
+        username,
+        displayName: username,
+        points,
+        reason: 'join',
+      });
+    });
+  }
+
+  private startPointsTimer() {
+    setInterval(() => {
+      const points = this.streamStatus.isOnline ? 10 : 3;
+
+      this.activeUsers.forEach(username => {
+        void this.amqpConnection.publish('points', 'award-points', {
+          username,
+          displayName: username,
+          points,
+          reason: 'timer',
+        });
+      });
+
+      this.activeUsers.clear();
+    }, this.POINTS_INTERVAL);
+  }
+
+  private startStreamStatusChecker() {
+    setInterval(() => {
+      void (async () => {
+        this.streamStatus = {
+          isOnline: await this.isStreamOnline(),
+          lastCheck: new Date(),
+        };
+      })();
+    }, this.STREAM_CHECK_INTERVAL);
   }
 
   private async connect() {
@@ -59,7 +114,7 @@ export class TwitchBotService implements OnModuleInit {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status.toString()}`);
       }
 
       const data = await response.json();
@@ -84,7 +139,7 @@ export class TwitchBotService implements OnModuleInit {
       );
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status.toString()}`);
       }
 
       const data = await response.json();
@@ -95,78 +150,34 @@ export class TwitchBotService implements OnModuleInit {
     }
   }
 
-  private registerEventHandlers() {
-    this.client.on('chat', (channel, userstate, message, self) => {
-      if (self) return;
-
-      const points = 1;
-      this.activeUsers.add(userstate.username ?? '');
-      this.handleUserActivity(userstate.username ?? '', userstate['display-name'] ?? '', points).catch(
-        (err: unknown) => {
-          console.error('Error handling chat activity:', err);
-        },
-      );
-    });
-
-    this.client.on('join', (channel, username, self) => {
-      if (self) return;
-
-      const points = 5;
-      this.handleUserActivity(username, username, points).catch((err: unknown) => {
-        console.error('Error handling join activity:', err);
-      });
-    });
-  }
-
-  private async handleUserActivity(username: string, displayName: string, points: number) {
-    try {
-      const user = await this.usersService.findByLogin(username);
-
-      if (user) {
-        const res = await this.usersService.addPoints(user.id, points);
-        await this.usersService.createPointsHistory(
-          user.id,
-          points,
-          PointsHistoryStatus.Received,
-          'Twitch',
-          `Você ganhou ${points.toString()} pontos pela atividade no chat!`,
-        );
-        console.log(`User ${username} ${displayName} has ${res.points.toFixed(2)} points`);
-
-        this.wsGateway.sendPointsUpdate(user.id, res.points);
-      }
-    } catch (error) {
-      console.error(`Error handling user activity for ${username}:`, error);
-    }
-  }
-
-  private startPointsTimer() {
-    setInterval(() => {
-      void (async () => {
-        const isOnline = await this.isStreamOnline();
-        const points = isOnline ? 10 : 3;
-
-        this.activeUsers.forEach(username => {
-          this.handleUserActivity(username, username, points).catch((err: unknown) => {
-            console.error('Error handling timer points:', err);
-          });
-        });
-        this.activeUsers.clear();
-      })();
-    }, this.POINTS_INTERVAL);
-  }
-
   private async isStreamOnline(): Promise<boolean> {
     try {
-      const response = await fetch(`https://twitch.tv/${process.env.TWITCH_CHANNEL ?? ''}`);
-      const sourceCode = await response.text();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 5000); // 5s timeout
 
-      if (sourceCode.includes('isLiveBroadcast')) {
-        return true;
+      const response = await fetch(
+        `https://api.twitch.tv/helix/streams?user_login=${process.env.TWITCH_CHANNEL ?? ''}`,
+        {
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${await this.getTwitchOAuthToken()}`,
+            'Client-Id': process.env.TWITCH_CLIENT_ID ?? '',
+          },
+        },
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status.toString()}`);
       }
-      return false;
+
+      const data = await response.json();
+      return data.data.length > 0;
     } catch (error) {
-      console.log('Error occurred:', error);
+      console.error('Failed to check stream status:', error);
       return false;
     }
   }

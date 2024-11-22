@@ -38,6 +38,9 @@ model User {
   UserProfile               UserProfile?
   Transaction               Transaction[]
   PointsHistory             PointsHistory[]
+  Clipper                   Clipper[]
+  Ticket                    Ticket[]
+  Giveaway                  Giveaway[]                  @relation("GiveawayWinners")
 
   @@map("user")
 }
@@ -133,6 +136,70 @@ model Transaction {
   response  String?  @default("")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   item      Item     @relation(fields: [itemId, points], references: [id, price], onDelete: Cascade)
+}
+
+model Clipper {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  userId         String        @map("user_id") @db.Uuid()
+  status         ClipperStatus @default(Pending)
+  twitchUsername String        @map("twitch_username")
+  tiktokUsername String        @map("tiktok_username")
+  motivation     String        @map("motivation")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  ClipperLinks ClipperLinks[]
+}
+
+model ClipperLinks {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  clipperId String  @map("clipper_id") @db.Uuid()
+  clipper   Clipper @relation(fields: [clipperId], references: [id], onDelete: Cascade)
+
+  url String @map("url")
+}
+
+model Giveaway {
+  id          String         @id @default(uuid(7)) @db.Uuid
+  title       String
+  description String
+  startDate   DateTime
+  endDate     DateTime
+  ticketPrice Float          @default(10)
+  maxTickets  Int            @default(-1)
+  image       String?
+  status      GiveawayStatus @default(Active)
+  winnerCount Int            @default(1)
+  winners     User[]         @relation("GiveawayWinners")
+  tickets     Ticket[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Ticket {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  hash       String   @unique
+  userId     String   @db.Uuid
+  giveawayId String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id])
+  giveaway   Giveaway @relation(fields: [giveawayId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+enum GiveawayStatus {
+  Active
+  Completed
+  Cancelled
+}
+
+enum ClipperStatus {
+  Pending
+  Approved
+  Rejected
 }
 
 enum PointsHistoryStatus {

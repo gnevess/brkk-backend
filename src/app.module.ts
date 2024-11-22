@@ -8,6 +8,8 @@ import { TwitchBotModule } from './twitch-bot/twitch-bot.module';
 import { SocketJwtStrategy } from './common/strategy/socket-jwt-auth.strategy';
 import { ItemModule } from './item/item.module';
 import { WebsocketModule } from './websocket/websocket.module';
+import { ClipperModule } from './clipper/clipper.module';
+import { GiveawayModule } from './giveaway/giveaway.module';
 
 @Module({
   imports: [
@@ -31,8 +33,9 @@ import { WebsocketModule } from './websocket/websocket.module';
     UsersModule,
     TwitchBotModule,
     ItemModule,
-    WebsocketModule
-
+    WebsocketModule,
+    ClipperModule,
+    GiveawayModule
   ],
   providers: [
     SocketJwtStrategy

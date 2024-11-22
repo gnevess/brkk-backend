@@ -9,12 +9,12 @@ import {
 } from '@nestjs/websockets';
 import { UseGuards } from '@nestjs/common';
 import { JwtSocketGuard } from 'src/common/guards/socket-jwt-auth.guard';
-import { Item, Transaction } from '@prisma/client';
+import { Giveaway, Item, Ticket, Transaction } from '@prisma/client';
 
 @UseGuards(JwtSocketGuard)
-@NestWebSocketGateway(3002, {
+@NestWebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    origin: '*',
     credentials: true,
   },
 })
@@ -73,10 +73,34 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   public sendItemUpdate(items: Item[]) {
-    console.log(items);
     this.server.emit('item_update', {
       type: 'item_update',
-      items
+      items,
+    });
+  }
+
+  public sendGiveawayUpdate(ticket: Ticket[]) {
+    this.server.emit(`giveaway_update`, {
+      type: 'ticket_created',
+      ticket,
+    });
+  }
+
+  public sendGiveawayComplete(
+    giveawayId: string,
+    giveaway: Giveaway & {
+      winners: {
+        id: string;
+        UserProfile: {
+          displayName: string | null;
+          avatar: string | null;
+        } | null;
+      }[];
+    },
+  ) {
+    this.server.emit(`giveaway:${giveawayId}`, {
+      type: 'giveaway_complete',
+      winners: giveaway.winners,
     });
   }
 }
