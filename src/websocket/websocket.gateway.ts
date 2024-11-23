@@ -117,4 +117,13 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       topic,
     });
   }
+
+  public sendLikeUpdate(likeType: 'add' | 'remove', userId: string, postId: string) {
+    this.server.emit('post_update', {
+      type: 'like_update',
+      likeType,
+      userId,
+      postId,
+    });
+  }
 }

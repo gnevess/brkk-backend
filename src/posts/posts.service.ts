@@ -177,6 +177,8 @@ export class PostsService {
       },
     });
 
+    this.websocketGateway.sendLikeUpdate('add', userId, postId);
+
     return { message: 'Post curtido com sucesso' };
   }
 
@@ -197,6 +199,8 @@ export class PostsService {
         },
       },
     });
+
+    this.websocketGateway.sendLikeUpdate('remove', userId, postId);
 
     return { message: 'Post descurtido com sucesso' };
   }
