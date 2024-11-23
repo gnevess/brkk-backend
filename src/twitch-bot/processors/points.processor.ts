@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { UsersService } from '../../users/users.service';
 import { WebSocketGateway } from '../../websocket/websocket.gateway';
 import { UserPointsData } from '../interfaces/user-points.interface';
-import { PointsHistoryStatus } from '@prisma/client';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 
 @Injectable()

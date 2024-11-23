@@ -10,6 +10,7 @@ import { ItemModule } from './item/item.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { ClipperModule } from './clipper/clipper.module';
 import { GiveawayModule } from './giveaway/giveaway.module';
+import { PostsModule } from './posts/posts.module';
 
 @Module({
   imports: [
@@ -35,7 +36,8 @@ import { GiveawayModule } from './giveaway/giveaway.module';
     ItemModule,
     WebsocketModule,
     ClipperModule,
-    GiveawayModule
+    GiveawayModule,
+    PostsModule
   ],
   providers: [
     SocketJwtStrategy

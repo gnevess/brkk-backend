@@ -41,6 +41,10 @@ model User {
   Clipper                   Clipper[]
   Ticket                    Ticket[]
   Giveaway                  Giveaway[]                  @relation("GiveawayWinners")
+  posts                     Post[]
+  likes                     Like[]
+  comments                  Comment[]
+  shares                    Share[]
 
   @@map("user")
 }
@@ -188,6 +192,81 @@ model Ticket {
   user       User     @relation(fields: [userId], references: [id])
   giveaway   Giveaway @relation(fields: [giveawayId], references: [id])
   createdAt  DateTime @default(now())
+}
+
+model Post {
+  id        String    @id @default(uuid(7)) @db.Uuid()
+  content   String
+  image     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    String    @db.Uuid()
+  user      User      @relation(fields: [userId], references: [id])
+  likes     Like[]
+  comments  Comment[]
+  shares    Share[]
+  clip      Clip?
+
+  @@map("posts")
+}
+
+model Clip {
+  id        String   @id @default(uuid(7)) @db.Uuid()
+  thumbnail String
+  url       String
+  postId    String   @unique @db.Uuid()
+  post      Post     @relation(fields: [postId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clips")
+}
+
+model Like {
+  id        String   @id @default(uuid(7)) @db.Uuid()
+  postId    String   @db.Uuid()
+  userId    String   @db.Uuid()
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@map("likes")
+}
+
+model Comment {
+  id        String   @id @default(uuid(7)) @db.Uuid()
+  content   String
+  postId    String   @db.Uuid()
+  userId    String   @db.Uuid()
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("comments")
+}
+
+model Share {
+  id        String   @id @default(uuid(7)) @db.Uuid()
+  postId    String   @db.Uuid()
+  userId    String   @db.Uuid()
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("shares")
+}
+
+model Topic {
+  id        String   @id @default(uuid(7)) @db.Uuid()
+  name      String   @unique
+  postCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("topics")
 }
 
 enum GiveawayStatus {
