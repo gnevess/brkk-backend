@@ -1,15 +1,36 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from 'nestjs-prisma';
 import { CreatePostDto } from './dto/create-post.dto';
 import { Readable } from 'stream';
 import { bucketUpload } from 'src/common/bucket/bucket-upload';
 import { getPresignedUrlForDownload } from 'src/common/bucket/presigned-urls';
+import { WebSocketGateway } from 'src/websocket/websocket.gateway';
 
 @Injectable()
 export class PostsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private websocketGateway: WebSocketGateway,
+  ) {}
 
   async createPost(userId: string, createPostDto: CreatePostDto) {
+    // Add rate limiting check
+    const lastPost = await this.prisma.post.findFirst({
+      where: {
+        userId,
+        createdAt: {
+          gte: new Date(Date.now() - 5 * 60 * 1000) // Last 5 minutes
+        }
+      },
+    });
+
+    if (lastPost) {
+      throw new HttpException(
+        'Por favor, espere 5 minutos entre posts',
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
+
     const { image, ...rest } = createPostDto;
     let imageKey: string | null = null;
     if (image) {
@@ -50,7 +71,18 @@ export class PostsService {
           : undefined,
       },
       include: {
-        user: true,
+        user: {
+          select: {
+            id: true,
+            UserProfile: {
+              select: {
+                displayName: true,
+                login: true,
+                avatar: true,
+              },
+            },
+          },
+        },
         clip: true,
         _count: {
           select: {
@@ -62,10 +94,13 @@ export class PostsService {
       },
     });
 
+    this.websocketGateway.sendPostUpdate(post);
+
     return post;
   }
 
   async getFeed(userId: string) {
+    // Fetch posts first
     const posts = await this.prisma.post.findMany({
       include: {
         user: {
@@ -100,14 +135,19 @@ export class PostsService {
       },
     });
 
-    return posts.map(post => ({
-      ...post,
-      image: post.image ? getPresignedUrlForDownload(post.image) : null,
-      isLiked: post.likes.length > 0,
-      likes: post._count.likes,
-      comments: post._count.comments,
-      shares: post._count.shares,
-    }));
+    // Generate presigned URLs in parallel using Promise.all
+    const processedPosts = await Promise.all(
+      posts.map(post => ({
+        ...post,
+        image: post.image ? getPresignedUrlForDownload(post.image) : null,
+        isLiked: post.likes.length > 0,
+        likes: post._count.likes,
+        comments: post._count.comments,
+        shares: post._count.shares,
+      })),
+    );
+
+    return processedPosts;
   }
 
   async likePost(userId: string, postId: string) {
@@ -142,6 +182,9 @@ export class PostsService {
         postCount: 1,
       },
     });
+
+
+    this.websocketGateway.sendTrendingUpdate(topic);
     return topic;
   }
 

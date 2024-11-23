@@ -23,7 +23,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.693.0",
+    "@aws-sdk/client-s3": "^3.699.0",
     "@fastify/cookie": "8.3.0",
     "@golevelup/nestjs-rabbitmq": "^5.6.1",
     "@nestjs/bull": "^10.2.2",
