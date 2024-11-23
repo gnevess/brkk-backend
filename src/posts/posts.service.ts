@@ -88,6 +88,12 @@ export class PostsService {
             shares: true,
           },
         },
+        likes: {
+          where: {
+            userId,
+          },
+          take: 1,
+        },
       },
     });
 
