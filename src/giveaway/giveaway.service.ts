@@ -3,17 +3,19 @@ import { PrismaService } from 'nestjs-prisma';
 import { CreateGiveawayDto } from './dto/create-giveaway.dto';
 import { createHash } from 'crypto';
 import { WebSocketGateway } from '../websocket/websocket.gateway';
-import { GiveawayStatus } from '@prisma/client';
+import { GiveawayStatus, PointsHistoryStatus } from '@prisma/client';
 import { bucketUpload } from 'src/common/bucket/bucket-upload';
 import { Readable } from 'stream';
 import { getPresignedUrlForDownload } from 'src/common/bucket/presigned-urls';
 import { ParticipateGiveawayDto } from './dto/participate-giveaway.dto';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class GiveawayService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wsGateway: WebSocketGateway,
+    private readonly userService: UsersService,
   ) {}
 
   async getGiveaway(id: string) {
@@ -74,9 +76,9 @@ export class GiveawayService {
         include: {
           user: {
             select: {
-              UserProfile: true
-            }
-          }
+              UserProfile: true,
+            },
+          },
         },
         skip,
         take: limit,
@@ -288,6 +290,14 @@ export class GiveawayService {
       },
     });
 
+    await this.userService.createPointsHistory(
+      userId,
+      requiredPoints,
+      PointsHistoryStatus.Redeemed,
+      'Participação em sorteio',
+      `Você comprou ${data.tickets.toString()} tickets para o sorteio ${giveaway.title} por ${requiredPoints.toFixed(2)} pontos!`,
+    );
+
     this.wsGateway.sendGiveawayUpdate(ticketsWithUserData);
 
     this.wsGateway.sendPointsUpdate(userId, user.points - requiredPoints);
@@ -385,23 +395,22 @@ export class GiveawayService {
     }
 
     // Group tickets by user
-    const userTickets = giveaway.tickets.reduce<Record<string, { user: { id: string; profile: any }; ticketCount: number }>>(
-      (acc, ticket) => {
-        const userId = ticket.user.id;
-        if (!(userId in acc)) {
-          acc[userId] = {
-            user: {
-              id: userId,
-              profile: ticket.user.UserProfile,
-            },
-            ticketCount: 0,
-          };
-        }
-        acc[userId].ticketCount++;
-        return acc;
-      },
-      {},
-    );
+    const userTickets = giveaway.tickets.reduce<
+      Record<string, { user: { id: string; profile: any }; ticketCount: number }>
+    >((acc, ticket) => {
+      const userId = ticket.user.id;
+      if (!(userId in acc)) {
+        acc[userId] = {
+          user: {
+            id: userId,
+            profile: ticket.user.UserProfile,
+          },
+          ticketCount: 0,
+        };
+      }
+      acc[userId].ticketCount++;
+      return acc;
+    }, {});
 
     // Calculate odds for each user
     const totalTickets = giveaway._count.tickets;

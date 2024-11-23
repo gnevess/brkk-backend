@@ -60,6 +60,12 @@ export class TwitchBotService implements OnModuleInit {
         reason: 'join',
       });
     });
+
+    this.client.on('part', (channel, username, self) => {
+      if (self) return;
+
+      this.activeUsers.delete(username);
+    });
   }
 
   private startPointsTimer() {
@@ -74,6 +80,12 @@ export class TwitchBotService implements OnModuleInit {
           reason: 'timer',
         });
       });
+
+      console.log(
+        `Awarded points to ${this.activeUsers.size.toString()} users ${
+          this.streamStatus.isOnline ? 'while online' : 'while offline'
+        }`,
+      );
 
       this.activeUsers.clear();
     }, this.POINTS_INTERVAL);

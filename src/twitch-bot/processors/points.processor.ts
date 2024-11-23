@@ -25,13 +25,13 @@ export class PointsProcessor {
 
       if (user) {
         const res = await this.usersService.addPoints(user.id, points);
-        await this.usersService.createPointsHistory(
+        /*await this.usersService.createPointsHistory(
           user.id,
           points,
           PointsHistoryStatus.Received,
           'Twitch',
           `Você ganhou ${points.toFixed(2)} pontos por ${this.getReasonMessage(reason)}!`,
-        );
+        );*/
 
         this.wsGateway.sendPointsUpdate(user.id, res.points);
       }
