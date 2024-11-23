@@ -19,16 +19,13 @@ export class PostsService {
       where: {
         userId,
         createdAt: {
-          gte: new Date(Date.now() - 5 * 60 * 1000) // Last 5 minutes
-        }
+          gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
+        },
       },
     });
 
     if (lastPost) {
-      throw new HttpException(
-        'Por favor, espere 5 minutos entre posts',
-        HttpStatus.TOO_MANY_REQUESTS
-      );
+      throw new HttpException('Por favor, espere 5 minutos entre posts', HttpStatus.TOO_MANY_REQUESTS);
     }
 
     const { image, ...rest } = createPostDto;
@@ -159,6 +156,20 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
+    // Check if user already liked the post
+    const existingLike = await this.prisma.like.findUnique({
+      where: {
+        postId_userId: {
+          postId,
+          userId,
+        },
+      },
+    });
+
+    if (existingLike) {
+      throw new HttpException('Você já curtiu este post', HttpStatus.BAD_REQUEST);
+    }
+
     await this.prisma.like.create({
       data: {
         userId,
@@ -166,7 +177,28 @@ export class PostsService {
       },
     });
 
-    return { message: 'Post liked successfully' };
+    return { message: 'Post curtido com sucesso' };
+  }
+
+  async unlikePost(userId: string, postId: string) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    await this.prisma.like.delete({
+      where: {
+        postId_userId: {
+          postId,
+          userId,
+        },
+      },
+    });
+
+    return { message: 'Post descurtido com sucesso' };
   }
 
   async updateTopicCount(topicName: string) {
@@ -182,7 +214,6 @@ export class PostsService {
         postCount: 1,
       },
     });
-
 
     this.websocketGateway.sendTrendingUpdate(topic);
     return topic;

@@ -24,6 +24,11 @@ export class PostsController {
     return this.postsService.likePost(req.user.id, id);
   }
 
+  @Post(':id/unlike')
+  unlikePost(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.postsService.unlikePost(req.user.id, id);
+  }
+
   @Get('trending/topics')
   getTrendingTopics() {
     return this.postsService.getTrendingTopics();
