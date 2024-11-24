@@ -111,6 +111,8 @@ export class PostsService {
                 avatar: true,
               },
             },
+            TwitchUserBadges: true,
+            badges: true,
           },
         },
         clip: true,
