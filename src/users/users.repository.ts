@@ -4,6 +4,7 @@ import { PrismaService } from 'nestjs-prisma';
 import { EAuthenticationProviders } from 'src/common/enums/AuthenticationProviders';
 import { ErrorCodes } from 'src/common/enums/ErrorCodes';
 import { NotFoundError } from 'src/common/exceptions';
+import { BadgeStatus } from './interfaces/badge-status.interface';
 
 @Injectable()
 export class UsersRepository {
@@ -76,6 +77,7 @@ export class UsersRepository {
             createdAt: 'desc',
           },
         },
+        TwitchUserBadges: true,
         Ticket: true,
       },
     });
@@ -163,6 +165,20 @@ export class UsersRepository {
         status,
         title,
         description,
+      },
+    });
+  }
+
+  public updateBadges(userId: string, badgeStatus: BadgeStatus) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        TwitchUserBadges: {
+          upsert: {
+            create: badgeStatus,
+            update: badgeStatus,
+          },
+        },
       },
     });
   }

@@ -27,8 +27,9 @@ model ConfigurationAttribute {
 }
 
 model User {
-  id     String @id @default(uuid(7)) @db.Uuid
-  points Float  @default(0) @map("points")
+  id     String      @id @default(uuid(7)) @db.Uuid
+  points Float       @default(0) @map("points")
+  badges UserBadge[] @default([]) @map("badges")
 
   createdAt                 DateTime                    @default(now())
   updatedAt                 DateTime                    @updatedAt @map("updated_at")
@@ -45,8 +46,32 @@ model User {
   likes                     Like[]
   comments                  Comment[]
   shares                    Share[]
+  TwitchUserBadges          TwitchUserBadges?
 
   @@map("user")
+}
+
+model TwitchUserBadges {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @unique @db.Uuid()
+
+  // Badge fields
+  moderator      Boolean @default(false)
+  subscriber     Boolean @default(false)
+  subTime        Int?    @default(0)
+  subGifter      Boolean @default(false)
+  subGifterCount Int?    @default(0)
+  premium        Boolean @default(false)
+  vip            Boolean @default(false)
+  turbo          Boolean @default(false)
+  color          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  User User @relation(fields: [userId], references: [id])
+
+  @@map("twitch_user_badges")
 }
 
 model UserProfile {
@@ -297,4 +322,12 @@ enum Status {
 enum UserRole {
   USER
   ADMIN
+}
+
+enum UserBadge {
+  VERIFIED
+  BEGINNER
+  VETERAN
+  ELITE
+  LEGENDARY
 }

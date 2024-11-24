@@ -5,6 +5,7 @@ import { UsersRepository } from './users.repository';
 import { PointsHistoryStatus, User } from '@prisma/client';
 import { TwitchAuthDTO } from 'src/auth/dto/twitch-auth.dto';
 import { EAuthenticationProviders } from 'src/common/enums/AuthenticationProviders';
+import { BadgeStatus } from './interfaces/badge-status.interface';
 
 @Injectable()
 export class UsersService {
@@ -28,6 +29,10 @@ export class UsersService {
 
   public async validateUser(data: TwitchAuthDTO) {
     return await this.twitchAuthentication(data);
+  }
+
+  public async updateBadges(userId: string, badgeStatus: BadgeStatus) {
+    return this.usersRepository.updateBadges(userId, badgeStatus);
   }
 
   private async twitchAuthentication(data: TwitchAuthDTO) {

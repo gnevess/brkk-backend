@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Client } from 'tmi.js';
+import { Client, Userstate } from 'tmi.js';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { StreamStatus } from './interfaces/user-points.interface';
 @Injectable()
@@ -35,6 +35,31 @@ export class TwitchBotService implements OnModuleInit {
     this.startStreamStatusChecker();
   }
 
+  async getVods() {
+    try {
+      const accessToken = await this.getTwitchOAuthToken();
+      const response = await fetch(
+        'https://api.twitch.tv/helix/videos?user_id=' + (process.env.TWITCH_CHANNEL_ID ?? '') + '&first=30',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Client-Id': process.env.TWITCH_CLIENT_ID ?? '',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status.toString()}`);
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Failed to fetch VODs:', error);
+      return [];
+    }
+  }
+
   private registerEventHandlers() {
     this.client.on('chat', (channel, userstate, message, self) => {
       if (self) return;
@@ -45,6 +70,16 @@ export class TwitchBotService implements OnModuleInit {
         displayName: userstate['display-name'] ?? '',
         points,
         reason: 'chat',
+      });
+      console.log(userstate.username === 'laianesilva__' ? userstate : '');
+      void this.amqpConnection.publish('twitch', 'badge-update', {
+        username: userstate.username ?? '',
+        displayName: userstate['display-name'] ?? '',
+        badges: userstate.badges ?? [],
+        color: userstate.color ?? '',
+        moderator: userstate.mod ?? false,
+        vip: userstate.vip ?? false,
+        turbo: userstate.turbo ?? false,
       });
     });
 
@@ -134,31 +169,6 @@ export class TwitchBotService implements OnModuleInit {
     } catch (error) {
       console.error('Failed to get Twitch OAuth token:', error);
       throw error;
-    }
-  }
-
-  async getVods() {
-    try {
-      const accessToken = await this.getTwitchOAuthToken();
-      const response = await fetch(
-        'https://api.twitch.tv/helix/videos?user_id=' + (process.env.TWITCH_CHANNEL_ID ?? '') + '&first=30',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Client-Id': process.env.TWITCH_CLIENT_ID ?? '',
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status.toString()}`);
-      }
-
-      const data = await response.json();
-      return data.data;
-    } catch (error) {
-      console.error('Failed to fetch VODs:', error);
-      return [];
     }
   }
 
