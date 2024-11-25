@@ -60,6 +60,30 @@ export class TwitchBotService implements OnModuleInit {
     }
   }
 
+  async getClip(id: string) {
+    try {
+      const accessToken = await this.getTwitchOAuthToken();
+      const response = await fetch(`https://api.twitch.tv/helix/clips?id=${id}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Client-Id': process.env.TWITCH_CLIENT_ID ?? '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status.toString()}`);
+      }
+
+      console.log(`res:`, response);
+      const data = await response.json();
+      console.log(`data:`, data);
+      return data.data[0];
+    } catch (error) {
+      console.error('Failed to fetch clip:', error);
+      return null;
+    }
+  }
+
   private registerEventHandlers() {
     this.client.on('chat', (channel, userstate, message, self) => {
       if (self) return;
