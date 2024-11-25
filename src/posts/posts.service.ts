@@ -13,6 +13,143 @@ export class PostsService {
     private websocketGateway: WebSocketGateway,
   ) {}
 
+  async getNewerPosts(userId: string, lastId?: string, limit = 10) {
+    const posts = await this.prisma.post.findMany({
+      where: {
+        ...(lastId
+          ? {
+              id: {
+                gt: lastId,
+              },
+            }
+          : {}),
+      },
+      take: limit,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            UserProfile: {
+              select: {
+                displayName: true,
+                login: true,
+                avatar: true,
+              },
+            },
+            TwitchUserBadges: true,
+            badges: true,
+          },
+        },
+        clip: true,
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+        likes: {
+          where: {
+            userId,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    const processedPosts = await Promise.all(
+      posts.map(post => ({
+        ...post,
+        image: post.image ? getPresignedUrlForDownload(post.image) : null,
+        isLiked: post.likes.length > 0,
+        likes: post._count.likes,
+        comments: post._count.comments,
+        shares: post._count.shares,
+      })),
+    );
+
+    return processedPosts;
+  }
+
+  async getOlderPosts(userId: string, oldestPostId?: string, limit = 10, topic?: string) {
+    // If oldestPostId is provided, get the reference post's createdAt
+    const referenceDate = oldestPostId
+      ? (await this.prisma.post.findUnique({
+          where: { id: oldestPostId },
+          select: { createdAt: true },
+        }))?.createdAt
+      : undefined;
+
+    const posts = await this.prisma.post.findMany({
+      where: {
+        ...(referenceDate
+          ? {
+              createdAt: {
+                lt: referenceDate,
+              },
+            }
+          : {}),
+        ...(topic
+          ? {
+              content: {
+                contains: `#${topic}`,
+              },
+            }
+          : {}),
+      },
+      take: limit,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            UserProfile: {
+              select: {
+                displayName: true,
+                login: true,
+                avatar: true,
+              },
+            },
+            TwitchUserBadges: true,
+            badges: true,
+          },
+        },
+        clip: true,
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+        likes: {
+          where: {
+            userId,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    const processedPosts = await Promise.all(
+      posts.map(post => ({
+        ...post,
+        image: post.image ? getPresignedUrlForDownload(post.image) : null,
+        isLiked: post.likes.length > 0,
+        likes: post._count.likes,
+        comments: post._count.comments,
+        shares: post._count.shares,
+      })),
+    );
+
+    return processedPosts;
+  }
+
   async createPost(userId: string, createPostDto: CreatePostDto) {
     // Add rate limiting check
     const lastPost = await this.prisma.post.findFirst({

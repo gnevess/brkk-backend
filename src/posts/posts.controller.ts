@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Req, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Req, Param, Query } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -12,6 +12,32 @@ export class PostsController {
   @Post()
   create(@Req() req: AuthenticatedRequest, @Body() createPostDto: CreatePostDto) {
     return this.postsService.createPost(req.user.id, createPostDto);
+  }
+
+  @Get('feed/newer')
+  getNewerPosts(
+    @Req() req: AuthenticatedRequest,
+    @Param('lastId') lastId?: string,
+    @Param('limit') limit = '10',
+  ) {
+    console.log(`lastId:`, lastId);
+    console.log(`limit:`, limit);
+    return this.postsService.getNewerPosts(req.user.id, lastId, parseInt(limit));
+  }
+
+  @Get('feed/older')
+  getOlderPosts(
+    @Req() req: AuthenticatedRequest,
+    @Query('oldestPostId') oldestPostId?: string,
+    @Query('limit') limit = '10',
+    @Query('topic') topic?: string,
+  ) {
+    return this.postsService.getOlderPosts(
+      req.user.id,
+      oldestPostId,
+      parseInt(limit),
+      topic
+    );
   }
 
   @Get('feed')
