@@ -5,6 +5,8 @@ import { Readable } from 'stream';
 import { bucketUpload } from 'src/common/bucket/bucket-upload';
 import { getPresignedUrlForDownload } from 'src/common/bucket/presigned-urls';
 import { WebSocketGateway } from 'src/websocket/websocket.gateway';
+import { CreateCommentDto } from './dto/create-comment.dto';
+import { ForbiddenError } from 'src/common/exceptions';
 
 @Injectable()
 export class PostsService {
@@ -12,6 +14,57 @@ export class PostsService {
     private prisma: PrismaService,
     private websocketGateway: WebSocketGateway,
   ) {}
+
+  async getPost(userId: string, id: string) {
+    const posts = await this.prisma.post.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            UserProfile: {
+              select: {
+                displayName: true,
+                login: true,
+                avatar: true,
+              },
+            },
+            TwitchUserBadges: true,
+            badges: true,
+          },
+        },
+        clip: true,
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+        likes: {
+          where: {
+            userId,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (!posts) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const processedPosts = {
+      ...posts,
+      image: posts.image ? getPresignedUrlForDownload(posts.image) : null,
+      isLiked: posts.likes.length > 0,
+      likes: posts._count.likes,
+      comments: posts._count.comments,
+      shares: posts._count.shares,
+    };
+
+    return processedPosts;
+  }
 
   async getNewerPosts(userId: string, lastId?: string, limit = 10) {
     const posts = await this.prisma.post.findMany({
@@ -77,10 +130,12 @@ export class PostsService {
   async getOlderPosts(userId: string, oldestPostId?: string, limit = 10, topic?: string) {
     // If oldestPostId is provided, get the reference post's createdAt
     const referenceDate = oldestPostId
-      ? (await this.prisma.post.findUnique({
-          where: { id: oldestPostId },
-          select: { createdAt: true },
-        }))?.createdAt
+      ? (
+          await this.prisma.post.findUnique({
+            where: { id: oldestPostId },
+            select: { createdAt: true },
+          })
+        )?.createdAt
       : undefined;
 
     const posts = await this.prisma.post.findMany({
@@ -298,6 +353,8 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
+    console.log(`likePost: ${postId} ${userId}`);
+
     // Check if user already liked the post
     const existingLike = await this.prisma.like.findUnique({
       where: {
@@ -331,6 +388,21 @@ export class PostsService {
 
     if (!post) {
       throw new NotFoundException('Post not found');
+    }
+
+    console.log(`unlikePost: ${postId} ${userId}`);
+    // Check if the like exists before attempting to delete
+    const existingLike = await this.prisma.like.findUnique({
+      where: {
+        postId_userId: {
+          postId,
+          userId,
+        },
+      },
+    });
+
+    if (!existingLike) {
+      throw new HttpException('Você ainda não curtiu este post', HttpStatus.BAD_REQUEST);
     }
 
     await this.prisma.like.delete({
@@ -385,5 +457,110 @@ export class PostsService {
     const topics = this.extractTopics(content);
     await Promise.all(topics.map(topic => this.updateTopicCount(topic)));
     return topics;
+  }
+
+  async createComment(userId: string, postId: string, createCommentDto: CreateCommentDto) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const comment = await this.prisma.comment.create({
+      data: {
+        content: createCommentDto.content,
+        userId,
+        postId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            UserProfile: {
+              select: {
+                displayName: true,
+                login: true,
+                avatar: true,
+              },
+            },
+            TwitchUserBadges: true,
+            badges: true,
+          },
+        },
+      },
+    });
+
+    this.websocketGateway.sendCommentUpdate('add', comment);
+
+    return comment;
+  }
+
+  async getComments(postId: string, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+
+    const [comments, total] = await Promise.all([
+      this.prisma.comment.findMany({
+        where: { postId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              UserProfile: {
+                select: {
+                  displayName: true,
+                  login: true,
+                  avatar: true,
+                },
+              },
+              TwitchUserBadges: true,
+              badges: true,
+            },
+          },
+          likes: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.comment.count({
+        where: { postId },
+      }),
+    ]);
+
+    return {
+      comments,
+      pagination: {
+        total,
+        pages: Math.ceil(total / limit),
+        page,
+        limit,
+      },
+    };
+  }
+
+  async deleteComment(userId: string, commentId: string) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (comment.userId !== userId) {
+      throw new ForbiddenError('You can only delete your own comments');
+    }
+
+    await this.prisma.comment.delete({
+      where: { id: commentId },
+    });
+
+    this.websocketGateway.sendCommentUpdate('remove', comment);
+
+    return { message: 'Comment deleted successfully' };
   }
 }

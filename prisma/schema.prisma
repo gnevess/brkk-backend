@@ -251,9 +251,11 @@ model Like {
   id        String   @id @default(uuid(7)) @db.Uuid()
   postId    String   @db.Uuid()
   userId    String   @db.Uuid()
+  commentId String?  @unique @db.Uuid()
   createdAt DateTime @default(now())
   post      Post     @relation(fields: [postId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+  comment   Comment? @relation(fields: [commentId], references: [id])
 
   @@unique([postId, userId])
   @@map("likes")
@@ -264,11 +266,12 @@ model Comment {
   content   String
   postId    String   @db.Uuid()
   userId    String   @db.Uuid()
-  likes     Int      @default(0)
+  commentId String?  @db.Uuid()
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   post      Post     @relation(fields: [postId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+  likes     Like[]
 
   @@map("comments")
 }

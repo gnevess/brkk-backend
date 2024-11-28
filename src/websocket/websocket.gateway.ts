@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { UseGuards } from '@nestjs/common';
 import { JwtSocketGuard } from 'src/common/guards/socket-jwt-auth.guard';
-import { Giveaway, Item, Post, Ticket, Topic, Transaction } from '@prisma/client';
+import { Comment, Giveaway, Item, Post, Ticket, Topic, Transaction } from '@prisma/client';
 
 @UseGuards(JwtSocketGuard)
 @NestWebSocketGateway({
@@ -118,12 +118,21 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     });
   }
 
-  public sendLikeUpdate(likeType: 'add' | 'remove', userId: string, postId: string) {
+  public sendLikeUpdate(likeType: 'add' | 'remove', userId: string, postId: string, commentId?: string) {
     this.server.emit('post_update', {
       type: 'like_update',
       likeType,
       userId,
       postId,
+      commentId,
+    });
+  }
+
+  public sendCommentUpdate(commentType: 'add' | 'remove', comment: Comment) {
+    this.server.emit('post_update', {
+      type: 'comment_update',
+      commentType,
+      comment,
     });
   }
 }
